@@ -32,10 +32,7 @@
 |
 */
 
-Route::get('/', function()
-{
-	return View::make('home.index');
-});
+Route::get('/api/biz/(:num)', 'api@business');
 
 /*
 |--------------------------------------------------------------------------
