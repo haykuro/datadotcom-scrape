@@ -32,7 +32,9 @@
 |
 */
 
-Route::get('/api/biz/(:num)', 'api@business');
+Route::get('/api/datadotcom/biz/(:num)', 'api@datadotcom_business');
+Route::get('/api/411info/biz/(:num)', 'api@four11dotinfo_business');
+Route::get('/api/411info/person/(:num)', 'api@four11dotinfo_person');
 
 /*
 |--------------------------------------------------------------------------

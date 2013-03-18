@@ -17,6 +17,7 @@ class Business extends Eloquent
 			$business->name = $args['name'];
 			$business->jigsaw_id = $args['jigsaw_id'];
 			$business->created_at = date('Y-m-d H:i:s');
+			$business->save();
 		}
 
 		return $business;
