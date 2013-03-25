@@ -1,16 +1,37 @@
 <?php
 
-class DataDotComScrape_Task
+class Scrape_Task
 {
 	private static $scrape_limit;
 
 	private static function JSONDB($biz_data)
 	{
-		$data_string = json_encode($biz_data);
+		if(!isset($biz_data['type']))
+		{
+			throw new Exception('Property \'type\' is required to post to JSON DB.');
+			return false;
+		}
+		$url = 'http://storage.tnapi.com';
 
+		switch($biz_data['type'])
+		{
+			case 'datadotcom_biz':
+				$url .= '/jigsaw';
+				break;
+			case '411_biz':
+				$url .= '/business411';
+				break;
+			case '411_person':
+				$url .= '/person411';
+				break;
+		}
+
+		unset($biz_data['type']);
+
+		$data_string = json_encode($biz_data);
 		// echo "\n.... SENDING ".strlen($data_string)." BYTES: '{$data_string}'\n";
 
-		$ch = curl_init('http://storage.tnapi.com/jigsaw');
+		$ch = curl_init($url);
 		curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC) ;
 		curl_setopt($ch, CURLOPT_USERPWD, "tnapi-storage:48usTe0NbQRH7kTx0B65986bCPfM4uR8rDxQtsDY");
 		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
@@ -28,7 +49,8 @@ class DataDotComScrape_Task
 		return $result;
 	}
 
-	private static function mySQL($biz_data)
+	/*
+	private static function datadotcom_mySQL($biz_data)
 	{
 		// does the business already exist?
 		$business = Business::create_or_find(array(
@@ -98,49 +120,86 @@ class DataDotComScrape_Task
 		$headquarter->updated_at = date('Y-m-d H:i:s');
 		$headquarter->save();
 	}
+	*/
 
 	public static function run($args)
 	{
-		$mysql = false;
 		$began_scraping = time();
 		$began_scraping_text = '[.] Began Scraping at '.date('Y-m-d H:i:s', $began_scraping)."\n";
-		Log::write('DataDotCom_Scraper', $began_scraping_text);
+		Log::write('Scraper', $began_scraping_text);
 		echo $began_scraping_text;
 		unset($began_scraping_text);
 
-		$continue_from = ( (is_numeric($args[0]) && (int)$args[0] > 0) ? (int)$args[0] : 1);
-		self::$scrape_limit = ( (is_numeric($args[1]) && (int)$args[1] > 0) ? (int)$args[1] : 100);
+		$continue_from = ( (isset($args[0]) && is_numeric($args[0]) && (int)$args[0] > 0) ? (int)$args[0] : 1);
+		self::$scrape_limit = ( (isset($args[1]) && is_numeric($args[1]) && (int)$args[1] > 0) ? (int)$args[1] : 100);
 
 		for($i = $continue_from; $i < (self::$scrape_limit + $continue_from); $i++)
 		{
-			Log::write('DataDotCom_Scraper', '[.] Scraping biz_id: '.$i."\n");
+			// DataDotCom Business Scrape
+			// Log::write('Scraper.DataDotCom.Biz', '[.] Scraping id: '.$i."\n");
 			$biz_data = DataDotCom::scrapeBusiness(array(
 				'biz_id' => $i
 			));
 
 			if($biz_data === false)
 			{
-				Log::write('DataDotCom_Scraper', '[!] 404 on Biz_Id: '.$i."\n");
-				continue;
-			}
-
-			if($mysql==true)
-			{
-				self::mySQL($biz_data);
+				Log::write('Scraper.DataDotCom.Biz', '[!] 404 on id: '.$i."\n");
 			}
 			else
 			{
-				// post to DB via JSON (thank you Randell.)
-				if(strlen(self::JSONDB($biz_data)) > 0)
+				$ret = self::JSONDB($biz_data);
+				if($ret === false || strlen($ret) > 0)
 				{
-					Log::write('DataDotCom_Scraper', '[!] Failed to CURL POST Biz_Id: '.$i."\n");
+					Log::write('Scraper.DataDotCom.Biz', '[!] Failed to CURL POST id: '.$i."\n");
 				}
 			}
+
+			// 411.info - Business
+			// Log::write('Scraper.411Info.Biz', '[.] Scraping id: '.$i."\n");
+			$biz_data = Four11DotInfo::scrapeBusiness(array(
+				'biz_id' => $i
+			));
+
+			if($biz_data === false)
+			{
+				Log::write('Scraper.411Info.Biz', '[!] 404 on id: '.$i."\n");
+			}
+			else
+			{
+				$ret = self::JSONDB($biz_data);
+				if($ret === false || strlen($ret) > 0)
+				{
+					Log::write('Scraper.411Info.Biz', '[!] Failed to CURL POST id: '.$i."\n");
+				}
+			}
+			# -- Garbage Collection
+			unset($biz_data);
+
+			// 411.info - Person
+			// Log::write('Scraper.411Info.Person', '[.] Scraping id: '.$i."\n");
+			$person_data = Four11DotInfo::scrapePerson(array(
+				'person_id' => $i
+			));
+
+			if($person_data === false)
+			{
+				Log::write('Scraper.411Info.Person', '[!] 404 on id: '.$i."\n");
+			}
+			else
+			{
+				$ret = self::JSONDB($person_data);
+				if($ret === false || strlen($ret) > 0)
+				{
+					Log::write('Scraper.411Info.Person', '[!] Failed to CURL POST id: '.$i."\n");
+				}
+			}
+			# -- Garbage Collection
+			unset($person_data);
 		}
 
 		$finished_at = time();
 		$finished_text = '[.] Finished Scraping at '.date('Y-m-d H:i:s', $finished_at).' ('.($finished_at-$began_scraping).' seconds)'."\n";
-		Log::write('DataDotCom_Scraper', $finished_text);
+		Log::write('Scraper', $finished_text);
 		echo $finished_text;
 
 		return true;
