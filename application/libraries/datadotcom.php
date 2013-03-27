@@ -104,7 +104,10 @@ class DataDotCom
 						# Sleep for 3 seconds, this will stop any erroneous connection problems.
 						sleep(3);
 						$biz = self::scrapeBusiness($args, true);
-						Cache::put($cache_name, $biz, 5);
+						if($biz !== false)
+						{
+							Cache::put($cache_name, $biz, 5);
+						}
 						return $biz;
 					}
 					else
@@ -191,6 +194,7 @@ class DataDotCom
 					}
 
 					Cache::put($cache_name, $biz, 5);
+					return $biz;
 				}
 
 			}
